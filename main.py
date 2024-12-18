@@ -6,15 +6,18 @@ from scipy.stats import truncnorm
 
 # Вхідні дані
 ORDER_RATE = 10  # середня кількість замовлень на годину (пуассонівський потік)
-KITCHEN_CAPACITY = 2  # кількість замовлень, які кухня може готувати одночасно
+KITCHEN_CAPACITY = 3  # кількість замовлень, які кухня може готувати одночасно
 COURIERS = 3  # кількість курʼєрів
-COURIERS_SPEED = {"car": (15, 10), "scooter": (30, 10)}  # час доставки (середнє, розкид)
-PREP_TIME = (15, 5)  # час приготування (середнє, розкид)
-SIM_TIME = 240  # час симуляції (хвилини)
+COURIERS_SPEED = {"car": (20, 10), "scooter": (35, 10)}  # час доставки (середнє, розкид)
+PREP_TIME = (20, 5)  # час приготування (середнє, розкид)
+SIM_TIME = 480  # час симуляції (хвилини)
 
 # Для статистики
-waiting_times = []  # час простою замовлень у черзі
-delivery_times = []  # загальний час виконання замовлень
+prep_waiting_times = []  # час простою замовлень у черзі на приготування
+delivery_waiting_times = [] # час простою замовлень у черзі на доставку
+order_complete_times = []  # загальний час виконання замовлень
+prep_queue_lengths = [] # довжина черги на приготування
+delivery_queue_lengths = [] # довжина черги на доставку
 
 
 # Функція обчислення нормального розподілу в чітких межах відхилення
@@ -77,11 +80,12 @@ def handle_order(env, restaurant, order_id):
     # Черга на кухню (двоканальна СМО1)
     with restaurant.kitchen.request() as request:
         # Замовлення очікує в черзу на приготування
+        prep_queue_lengths.append(len(restaurant.kitchen.queue))  # записуємо кількість у черзі
         yield request
 
         # Замовлення завершило очікування в черзі
         prep_start = env.now
-        waiting_times.append(prep_start - arrival_time) # записуємо час у черзі
+        prep_waiting_times.append(prep_start - arrival_time) # записуємо час у черзі
         print(f"Order {order_id} starts preparation at {prep_start:.2f} minutes")
 
         # Початок приготування замовлення, очікуємо завершення приготування
@@ -94,11 +98,12 @@ def handle_order(env, restaurant, order_id):
     # Черга на доставку (триканальна СМО2 з двома каналами типу А та одним каналом типу В)
     with restaurant.couriers.request() as request:
         # Замовлення очікує в черзу на доставку
+        delivery_queue_lengths.append(len(restaurant.couriers.queue))  # записуємо кількість у черзі
         yield request
 
         # Замовлення завершило очікування в черзі
         courier_start = env.now
-        waiting_times.append(courier_start - arrival_time) # записуємо час у черзі
+        delivery_waiting_times.append(courier_start - prep_done) # записуємо час у черзі
         print(f"Order {order_id} assigned to a courier at {courier_start:.2f} minutes")
 
         # Вибір транспортного засобу
@@ -111,7 +116,7 @@ def handle_order(env, restaurant, order_id):
         print(f"Order {order_id} delivered at {delivery_done:.2f} minutes")
         # Записуємо загальний час виконання замовлення
         total_time = delivery_done - arrival_time
-        delivery_times.append(total_time)
+        order_complete_times.append(total_time)
 
 
 # Створюємо середовище симуляції
@@ -122,7 +127,15 @@ env.run(until=SIM_TIME)
 
 # Аналіз результатів
 print("\n--- Simulation Results ---")
-print(f"Середній час у черзі: {statistics.mean(waiting_times):.2f} хвилин")
-print(f"Середній загальний час виконання замовлення: {statistics.mean(delivery_times):.2f} хвилин")
-print(f"Максимальний час виконання замовлення: {max(delivery_times):.2f} хвилин")
-print(f"Кількість замовлень: {len(delivery_times)}")
+print(f"Середній час у черзі на приготування: {statistics.mean(prep_waiting_times):.2f} хвилин")
+print(f"Середній час у черзі на доставку: {statistics.mean(delivery_waiting_times):.2f} хвилин")
+print(f"Загальний середній час у чергах: {statistics.mean(prep_waiting_times + delivery_waiting_times):.2f} хвилин")
+print(f"Середня кількість замовлень у черзі на приготування: {statistics.mean(prep_queue_lengths):.2f}")
+print(f"Середня кількість замовлень у черзі на доставку: {statistics.mean(delivery_queue_lengths):.2f}")
+print(f"Загальна середня кількість замовлень у чергах: {statistics.mean(prep_queue_lengths + delivery_queue_lengths):.2f}")
+print(f"Загальний середній час виконання замовлень: {statistics.mean(order_complete_times):.2f} хвилин")
+print(f"Кількість виконаних замовлень: {len(order_complete_times)}")
+
+# print()
+# print(max(prep_waiting_times), prep_waiting_times.index(max(prep_waiting_times)))
+# print(max(delivery_waiting_times), delivery_waiting_times.index(max(delivery_waiting_times)))
