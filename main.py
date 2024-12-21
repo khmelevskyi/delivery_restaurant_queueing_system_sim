@@ -26,8 +26,6 @@ SIM_TIME = 480  # час симуляції (хвилини)
 prep_waiting_times = []  # час простою замовлень у черзі на приготування
 delivery_waiting_times = [] # час простою замовлень у черзі на доставку
 order_complete_times = []  # загальний час виконання замовлень
-prep_queue_lengths = [] # довжина черги на приготування
-delivery_queue_lengths = [] # довжина черги на доставку
 
 
 # Функція обчислення нормального розподілу в чітких межах відхилення
@@ -117,7 +115,6 @@ def handle_order(env: simpy.Environment, restaurant: Restaurant, order_id: int):
     # Черга на кухню (двоканальна СМО1)
     with restaurant.kitchen.request() as request:
         # Замовлення очікує в черзу на приготування
-        prep_queue_lengths.append(len(restaurant.kitchen.queue))  # записуємо кількість у черзі
         yield request
 
         # Замовлення завершило очікування в черзі
@@ -135,7 +132,6 @@ def handle_order(env: simpy.Environment, restaurant: Restaurant, order_id: int):
     # Черга на доставку (двоканальна СМО2 з одним каналом типу А та одним каналом типу В)
     with restaurant.couriers.request() as request:
         # Замовлення очікує в черзі на доставку
-        delivery_queue_lengths.append(len(restaurant.couriers.queue))  # записуємо кількість у черзі
         yield request
 
         # Замовлення завершило очікування в черзі
@@ -172,12 +168,6 @@ print("\n--- Simulation Results ---")
 print(f"Середній час у черзі на приготування: {statistics.mean(prep_waiting_times):.1f} хвилин")
 print(f"Середній час у черзі на доставку: {statistics.mean(delivery_waiting_times):.1f} хвилин")
 print(f"Загальний середній час у чергах: {statistics.mean(prep_waiting_times + delivery_waiting_times):.1f} хвилин")
-print(f"Середня кількість замовлень у черзі на приготування: {statistics.mean(prep_queue_lengths):.1f}")
-print(f"Середня кількість замовлень у черзі на доставку: {statistics.mean(delivery_queue_lengths):.1f}")
-print(f"Загальна середня кількість замовлень у чергах: {statistics.mean(prep_queue_lengths + delivery_queue_lengths):.1f}")
-print(f"Загальний середній час виконання замовлень: {statistics.mean(order_complete_times):.1f} хвилин")
 print(f"Кількість виконаних замовлень: {len(order_complete_times)}")
+print(f"Загальний середній час виконання замовлень: {statistics.mean(order_complete_times):.1f} хвилин")
 
-# print()
-# print(max(prep_waiting_times), prep_waiting_times.index(max(prep_waiting_times)))
-# print(max(delivery_waiting_times), delivery_waiting_times.index(max(delivery_waiting_times)))
